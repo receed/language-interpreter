@@ -1,8 +1,9 @@
 import java.lang.ArithmeticException
 import java.lang.Exception
 
-class InterpreterException(message: String) : Exception(message)
-fun syntaxError(): Nothing = throw InterpreterException("SYNTAX ERROR")
+open class InterpreterException(message: String) : Exception(message)
+class SyntaxError : InterpreterException("SYNTAX ERROR")
+class RuntimeError : InterpreterException("RUNTIME ERROR")
 
 enum class Operation(val symbol: Char, val operator: (Int, Int) -> Int) {
     PLUS('+', Int::plus),
@@ -28,7 +29,7 @@ sealed class Expression {
                 try {
                     return operation.operator(left.value, right.value)
                 } catch (e: ArithmeticException) {
-                    throw InterpreterException("RUNTIME ERROR")
+                    throw RuntimeError()
                 }
             }
     }
@@ -39,20 +40,20 @@ class Parser(private val program: String) {
 
     private fun peek(): Char? = program.getOrNull(position)
     private fun nextIf(predicate: (Char) -> Boolean) = program.getOrNull(position)?.takeIf(predicate)?.also { position++ }
-    private fun next(predicate: (Char) -> Boolean) = nextIf(predicate) ?: syntaxError()
+    private fun next(predicate: (Char) -> Boolean) = nextIf(predicate) ?: throw SyntaxError()
     private fun next(symbol: Char): Boolean = nextIf {it == symbol} != null
-    private fun next(): Char = program.getOrNull(position++) ?: syntaxError()
+    private fun next(): Char = program.getOrNull(position++) ?: throw SyntaxError()
 
     private fun parseConstantExpression(): Expression.Number {
         val sign = if (next('-')) "-" else ""
         val number = sign + generateSequence { nextIf { it.isDigit() } }.joinToString("")
-        return Expression.Number(number.toIntOrNull() ?: syntaxError())
+        return Expression.Number(number.toIntOrNull() ?: throw SyntaxError())
     }
 
     private fun parseBinaryExpression(): Expression.Binary {
         next('(')
         val left = parseExpression()
-        val operation = operations[next()] ?: syntaxError()
+        val operation = operations[next()] ?: throw throw SyntaxError()
         val right = parseExpression()
         next(')')
         return Expression.Binary(left, operation, right)
@@ -65,6 +66,6 @@ class Parser(private val program: String) {
     }
 
     val expression by lazy {
-        parseExpression().also { if (position != program.length) syntaxError() }
+        parseExpression().also { if (position != program.length) throw SyntaxError() }
     }
 }
