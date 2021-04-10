@@ -1,10 +1,12 @@
 class SyntaxError : Exception("SYNTAX ERROR")
-class RuntimeError : Exception("RUNTIME ERROR")
+
 class InterpreterException(message: String, name: String, line: Int) : Exception(
-    "$message $name:$line"
+    "$message $name:${line + 1}"
 )
 
 class Parser(private val program: List<String>) {
+    constructor(line: String) : this(line.split('\n'))
+
     data class FunctionDefinition(val parameterCount: Int, val expression: Expression)
 
     private var line = 0
@@ -17,8 +19,8 @@ class Parser(private val program: List<String>) {
     private fun nextOrNull(predicate: (Char) -> Boolean) =
         program[line].getOrNull(position)?.takeIf(predicate)?.also { position++ }
 
-    private fun next(predicate: (Char) -> Boolean) = nextOrNull(predicate) ?: throw SyntaxError()
     private fun next(symbol: Char) = nextOrNull { it == symbol } ?: throw SyntaxError()
+    private fun next(symbols: String) = symbols.forEach { next(it) }
     private fun next(): Char = program[line].getOrNull(position++) ?: throw SyntaxError()
 
     private fun parseConstantExpression(): Expression.Number {
@@ -30,20 +32,21 @@ class Parser(private val program: List<String>) {
     }
 
     private fun parseBinaryExpression(): Expression.Binary {
+        val firstPosition = position
         next('(')
         val left = parseExpression()
         val operation = Operation.bySymbol[next()] ?: throw throw SyntaxError()
         val right = parseExpression()
         next(')')
-        return Expression.Binary(left, operation, right)
+        return Expression.Binary(left, operation, right, { program[line].substring(firstPosition, position) }, line)
     }
 
     private fun parseIfExpression(): Expression.If {
         next('[')
         val condition = parseExpression()
-        "]?{".forEach { next(it) }
+        next("]?{")
         val nonZeroCase = parseExpression()
-        "}:{".forEach { next(it) }
+        next("}:{")
         val zeroCase = parseExpression()
         next('}')
         return Expression.If(condition, nonZeroCase, zeroCase)
@@ -69,9 +72,9 @@ class Parser(private val program: List<String>) {
         parameterIndices = parameters.mapIndexed { index, name -> name to index }.toMap()
         if (parameterIndices.size < parameters.size)
             throw SyntaxError()
-        ")={".forEach { next(it) }
+        next(")={")
         if (functions.contains(functionName))
-            throw RuntimeError()
+            throw SyntaxError()
         functions[functionName] = FunctionDefinition(parameters.size, parseExpression())
         next('}')
     }
@@ -99,7 +102,13 @@ class Parser(private val program: List<String>) {
                     val parameters = parseParameterList()
                     return Expression.Call(identifier, parameters).also { callExpressions.add(it) }
                 } else {
-                    Expression.Parameter(parameterIndices[identifier] ?: throw SyntaxError())
+                    Expression.Parameter(
+                        parameterIndices[identifier] ?: throw InterpreterException(
+                            "ARGUMENT NUMBER MISMATCH",
+                            identifier,
+                            line
+                        )
+                    )
                 }
             }
         }
@@ -119,9 +128,13 @@ class Parser(private val program: List<String>) {
             throw SyntaxError()
         callExpressions.forEach { call ->
             val functionDefinition =
-                functions[call.functionName] ?: throw InterpreterException("FUNCTION NOT FOUND", call.functionName, 0)
+                functions[call.functionName] ?: throw InterpreterException(
+                    "FUNCTION NOT FOUND",
+                    call.functionName,
+                    line
+                )
             if (functionDefinition.parameterCount != call.parameterExpressions.size)
-                throw InterpreterException("ARGUMENT NUMBER MISMATCH", call.functionName, 0)
+                throw InterpreterException("ARGUMENT NUMBER MISMATCH", call.functionName, line)
             call.function = functionDefinition.expression
         }
         return expression

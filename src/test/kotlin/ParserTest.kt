@@ -44,7 +44,7 @@ internal class ParserTest {
         assertEquals(4, Parser("(2+2)").expression.compute())
         assertEquals(-4, Parser("(-2+-2)").expression.compute())
         assertEquals(4, Parser("(2+((3*4)/5))").expression.compute())
-        assertThrows(RuntimeError::class.java) { Parser("((2+8)%(3-3))").expression.compute() }
+        assertThrows(InterpreterException::class.java) { Parser("((2+8)%(3-3))").expression.compute() }
     }
 
     @Test

@@ -5,6 +5,5 @@ fun main() {
         println(expression.compute())
     } catch (e: Exception) {
         println(e.message)
-        throw e
     }
 }

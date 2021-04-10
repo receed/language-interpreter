@@ -6,13 +6,14 @@ sealed class Expression {
         override fun compute(parameters: List<Int>): Int = value
     }
 
-    class Binary(private val left: Expression, private val operation: Operation, private val right: Expression) :
+    class Binary(private val left: Expression, private val operation: Operation, private val right: Expression,
+            private val string: () -> String, private val line: Int) :
         Expression() {
         override fun compute(parameters: List<Int>): Int {
             try {
                 return operation.operator(left.compute(parameters), right.compute(parameters))
             } catch (e: ArithmeticException) {
-                throw RuntimeError()
+                throw InterpreterException("RUNTIME ERROR", string(), line)
             }
         }
     }
