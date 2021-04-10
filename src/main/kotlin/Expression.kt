@@ -35,7 +35,6 @@ sealed class Expression {
     ) :
         Expression() {
         override fun compute(parameters: List<Int>): Int {
-            val a = "aa"
             try {
                 return operation.operator(left.compute(parameters), right.compute(parameters))
             } catch (e: ArithmeticException) {

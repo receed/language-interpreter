@@ -2,11 +2,10 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "1.4.31"
-    application
 }
 
-group = "me.receed"
-version = "1.0-SNAPSHOT"
+group = "com.example"
+version = "1.0"
 
 repositories {
     mavenCentral()
@@ -22,10 +21,28 @@ tasks.test {
     useJUnitPlatform()
 }
 
-tasks.withType<KotlinCompile>() {
+tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "11"
 }
 
-application {
-    mainClassName = "MainKt"
+val fatJar = task("fatJar", Jar::class) {
+    manifest {
+        attributes(
+            mapOf(
+                "Implementation-Title" to project.name,
+                "Implementation-Version" to project.version,
+                "Main-Class" to "MainKt"
+            )
+        )
+    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    with((tasks.jar.get() as CopySpec))
 }
+
+tasks {
+    "build" {
+        dependsOn(fatJar)
+    }
+}
+
