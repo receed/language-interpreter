@@ -1,9 +1,10 @@
 fun main() {
-    val program = readLine()!!
+    val program = generateSequence(::readLine).toList()
     try {
         val expression = Parser(program).expression
-        println(expression.value)
-    } catch (e: InterpreterException) {
+        println(expression.compute())
+    } catch (e: Exception) {
         println(e.message)
+        throw e
     }
 }
