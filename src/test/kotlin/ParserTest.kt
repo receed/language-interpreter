@@ -112,4 +112,10 @@ internal class ParserTest {
             "RUNTIME ERROR (a/b):1"
         )
     }
+
+    @Test
+    fun duplicateIdentifiers() {
+        assertThrows(SyntaxError::class.java) { Parser(listOf("f(a,b)={1}", "f(a)={2}", "1")).expression }
+        assertThrows(SyntaxError::class.java) { Parser(listOf("f(a,a)={(a+a)}", "-1")).expression }
+    }
 }

@@ -4,53 +4,47 @@ class InterpreterException(message: String, name: String, line: Int) : Exception
     "$message $name:${line + 1}"
 )
 
-class Parser(private val program: List<String>) {
+class Parser(private val program: Program) {
+    constructor(lines: List<String>) : this(Program(lines))
     constructor(line: String) : this(line.split('\n'))
 
     private class FunctionDefinition(val parameterCount: Int, val expression: Expression)
 
-    private var line = 0
-    private var position: Int = 0
     private var parameterIndices = mapOf<String, Int>()
     private val functions = mutableMapOf<String, FunctionDefinition>()
     private val callExpressions = mutableListOf<Expression.Call>()
 
-    private fun peek(): Char? = program[line].getOrNull(position)
-    private fun nextOrNull(predicate: (Char) -> Boolean) =
-        program[line].getOrNull(position)?.takeIf(predicate)?.also { position++ }
-
-    private fun next(symbol: Char) = nextOrNull { it == symbol } ?: throw SyntaxError()
-    private fun next(symbols: String) = symbols.forEach { next(it) }
-    private fun next(): Char = program[line].getOrNull(position++) ?: throw SyntaxError()
-
     private fun parseConstantExpression(): Expression.Number {
-        val sign = if (peek() == '-') {
-            next(); "-"
+        val sign = if (program.peek() == '-') {
+            program.next(); "-"
         } else ""
-        val number = sign + generateSequence { nextOrNull { it.isDigit() } }.joinToString("")
+        val number = sign + generateSequence { program.nextOrNull { it.isDigit() } }.joinToString("")
         return Expression.Number(number.toIntOrNull() ?: throw SyntaxError())
     }
 
     private fun parseBinaryExpression(): Expression.Binary {
-        val startIndex = position
-        next('(')
+        val startIndex = program.position
+        program.next('(')
         val left = parseExpression()
-        val operation = Operation.bySymbol[next()] ?: throw throw SyntaxError()
+        val operation = Operation.bySymbol[program.next()] ?: throw throw SyntaxError()
         val right = parseExpression()
-        next(')')
-        val expressionString = program[line]
-        val endIndex = position
-        return Expression.Binary(left, operation, right, { expressionString.substring(startIndex, endIndex) }, line)
+        program.next(')')
+        val expressionString = program.line
+        val endIndex = program.position
+        return Expression.Binary(
+            left, operation, right, { expressionString.substring(startIndex, endIndex) },
+            program.lineNumber
+        )
     }
 
     private fun parseIfExpression(): Expression.If {
-        next('[')
+        program.next('[')
         val condition = parseExpression()
-        next("]?{")
+        program.next("]?{")
         val nonZeroCase = parseExpression()
-        next("}:{")
+        program.next("}:{")
         val zeroCase = parseExpression()
-        next('}')
+        program.next('}')
         return Expression.If(condition, nonZeroCase, zeroCase)
     }
 
@@ -58,49 +52,49 @@ class Parser(private val program: List<String>) {
         this in 'a'..'z' || this in 'A'..'Z' || this == '_'
 
     private fun parseIdentifier(): String =
-        generateSequence { nextOrNull { it.isCharacter() } }.joinToString("").takeIf { it.isNotEmpty() }
+        generateSequence { program.nextOrNull { it.isCharacter() } }.joinToString("").takeIf { it.isNotEmpty() }
             ?: throw SyntaxError()
 
     private fun parseFunctionDefinition() {
         val functionName = parseIdentifier()
-        next('(')
+        program.next('(')
         val parameters = generateSequence {
-            if (peek() == ')')
+            if (program.peek() == ')')
                 null
             else parseIdentifier().also {
-                nextOrNull { it == ',' } ?: if (peek() != ')') throw SyntaxError()
+                program.nextOrNull { it == ',' } ?: if (program.peek() != ')') throw SyntaxError()
             }
         }.toList()
         parameterIndices = parameters.mapIndexed { index, name -> name to index }.toMap()
         if (parameterIndices.size < parameters.size)
             throw SyntaxError()
-        next(")={")
+        program.next(")={")
         if (functions.contains(functionName))
             throw SyntaxError()
         functions[functionName] = FunctionDefinition(parameters.size, parseExpression())
-        next('}')
+        program.next('}')
     }
 
     private fun parseParameterList(): List<Expression> {
-        next('(')
+        program.next('(')
         return generateSequence {
-            if (nextOrNull { it == ')' } != null)
+            if (program.nextOrNull { it == ')' } != null)
                 null
             else
                 parseExpression().also {
-                    nextOrNull { it == ',' } ?: if (peek() != ')') throw SyntaxError()
+                    program.nextOrNull { it == ',' } ?: if (program.peek() != ')') throw SyntaxError()
                 }
         }.toList()
     }
 
     private fun parseExpression(): Expression {
-        return when (peek()) {
+        return when (program.peek()) {
             '(' -> parseBinaryExpression()
             '[' -> parseIfExpression()
             '-', in '0'..'9' -> parseConstantExpression()
             else -> {
                 val identifier = parseIdentifier()
-                if (peek() == '(') {
+                if (program.peek() == '(') {
                     val parameters = parseParameterList()
                     return Expression.Call(identifier, parameters).also { callExpressions.add(it) }
                 } else {
@@ -108,7 +102,7 @@ class Parser(private val program: List<String>) {
                         parameterIndices[identifier] ?: throw InterpreterException(
                             "ARGUMENT NUMBER MISMATCH",
                             identifier,
-                            line
+                            program.lineNumber
                         )
                     )
                 }
@@ -117,26 +111,24 @@ class Parser(private val program: List<String>) {
     }
 
     private fun parseProgram(): Expression {
-        while (line + 1 < program.size) {
-            position = 0
+        while (program.lineNumber + 1 < program.size) {
             parseFunctionDefinition()
-            if (position != program[line].length)
+            if (program.position != program.line.length)
                 throw SyntaxError()
-            line++
+            program.nextLine()
         }
-        position = 0
         val expression = parseExpression()
-        if (position != program[line].length)
+        if (program.position != program.line.length)
             throw SyntaxError()
         callExpressions.forEach { call ->
             val functionDefinition =
                 functions[call.functionName] ?: throw InterpreterException(
                     "FUNCTION NOT FOUND",
                     call.functionName,
-                    line
+                    program.lineNumber
                 )
             if (functionDefinition.parameterCount != call.parameterExpressions.size)
-                throw InterpreterException("ARGUMENT NUMBER MISMATCH", call.functionName, line)
+                throw InterpreterException("ARGUMENT NUMBER MISMATCH", call.functionName, program.lineNumber)
             call.function = functionDefinition.expression
         }
         return expression
