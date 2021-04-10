@@ -59,4 +59,57 @@ internal class ParserTest {
         assertEquals(5, Parser("([(32>23)]?{7}:{1}+[0]?{2}:{-2})").expression.compute())
         assertEquals(0, Parser("[((10+20)>(20+10))]?{1}:{0}").expression.compute())
     }
+
+    @Test
+    fun functions() {
+        assertEquals(
+            60,
+            Parser(
+                listOf(
+                    "g(x)={(f(x)+f((x/2)))}", "f(x)={[(x>1)]?{(f((x-1))+f((x-2)))}:{x}}", "g(10)"
+                )
+            ).expression.compute()
+        )
+    }
+
+    @Test
+    fun deepRecursion() {
+        assertEquals(2000, Parser(listOf("f(x)={[(x>0)]?{(f((x-1))+2)}:{0}}", "f(1000)")).expression.compute())
+    }
+
+    @Test
+    fun parameterNotFound() {
+        assertThrows(
+            InterpreterException::class.java,
+            { Parser(listOf("f(x)={y}", "f(10)")).expression },
+            "PARAMETER NOT FOUND y:1"
+        )
+    }
+
+    @Test
+    fun functionNotFound() {
+        assertThrows(
+            InterpreterException::class.java,
+            { Parser(listOf("g(x)={f(x)}", "g(10)")).expression },
+            "FUNCTION NOT FOUND f:1"
+        )
+    }
+
+    @Test
+    fun argumentNumberMismatch() {
+        assertThrows(
+            InterpreterException::class.java,
+            { Parser(listOf("g(x)={(x+1)}", "g(10,20)")).expression },
+            "ARGUMENT NUMBER MISMATCH g:2"
+        )
+    }
+
+    @Test
+    fun runtimeError() {
+        assertThrows(
+            InterpreterException::class.java,
+            { Parser(listOf("g(a,b)={(a/b)}", "g(10,0)")).expression.compute() },
+            "RUNTIME ERROR (a/b):1"
+        )
+    }
 }

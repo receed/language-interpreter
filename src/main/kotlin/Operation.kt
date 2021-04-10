@@ -9,6 +9,6 @@ enum class Operation(val symbol: Char, val operator: (Int, Int) -> Int) {
     EQUALS('=', { x, y -> if (x == y) 1 else 0 });
 
     companion object {
-        val bySymbol = Operation.values().map { it.symbol to it }.toMap()
+        val bySymbol = values().map { it.symbol to it }.toMap()
     }
 }

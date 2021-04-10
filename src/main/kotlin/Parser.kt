@@ -7,7 +7,7 @@ class InterpreterException(message: String, name: String, line: Int) : Exception
 class Parser(private val program: List<String>) {
     constructor(line: String) : this(line.split('\n'))
 
-    data class FunctionDefinition(val parameterCount: Int, val expression: Expression)
+    private class FunctionDefinition(val parameterCount: Int, val expression: Expression)
 
     private var line = 0
     private var position: Int = 0
@@ -32,13 +32,15 @@ class Parser(private val program: List<String>) {
     }
 
     private fun parseBinaryExpression(): Expression.Binary {
-        val firstPosition = position
+        val startIndex = position
         next('(')
         val left = parseExpression()
         val operation = Operation.bySymbol[next()] ?: throw throw SyntaxError()
         val right = parseExpression()
         next(')')
-        return Expression.Binary(left, operation, right, { program[line].substring(firstPosition, position) }, line)
+        val expressionString = program[line]
+        val endIndex = position
+        return Expression.Binary(left, operation, right, { expressionString.substring(startIndex, endIndex) }, line)
     }
 
     private fun parseIfExpression(): Expression.If {
