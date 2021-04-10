@@ -4,31 +4,43 @@ class InterpreterException(message: String, name: String, line: Int) : Exception
     "$message $name:${line + 1}"
 )
 
+/**
+ * Builds expression tree for the given program.
+ */
 class Parser(private val program: Program) {
     constructor(lines: List<String>) : this(Program(lines))
     constructor(line: String) : this(line.split('\n'))
 
     private class FunctionDefinition(val parameterCount: Int, val expression: Expression)
 
+    /**
+     * Positions of parameters in the last processed parameter list.
+     */
     private var parameterIndices = mapOf<String, Int>()
+
+    /**
+     * Parsed functions stored by their names.
+     */
     private val functions = mutableMapOf<String, FunctionDefinition>()
+
+    /**
+     * All processed call expressions. Used to bind function bodies to calls.
+     */
     private val callExpressions = mutableListOf<Expression.Call>()
 
-    private fun parseConstantExpression(): Expression.Number {
-        val sign = if (program.peek() == '-') {
-            program.next(); "-"
-        } else ""
+    private fun parseConstantExpression(): Expression.Constant {
+        val sign = if (program.trySkip('-')) "-" else ""
         val number = sign + generateSequence { program.nextOrNull { it.isDigit() } }.joinToString("")
-        return Expression.Number(number.toIntOrNull() ?: throw SyntaxError())
+        return Expression.Constant(number.toIntOrNull() ?: throw SyntaxError())
     }
 
     private fun parseBinaryExpression(): Expression.Binary {
         val startIndex = program.position
-        program.next('(')
+        program.skip('(')
         val left = parseExpression()
         val operation = Operation.bySymbol[program.next()] ?: throw throw SyntaxError()
         val right = parseExpression()
-        program.next(')')
+        program.skip(')')
         val expressionString = program.line
         val endIndex = program.position
         return Expression.Binary(
@@ -38,13 +50,13 @@ class Parser(private val program: Program) {
     }
 
     private fun parseIfExpression(): Expression.If {
-        program.next('[')
+        program.skip('[')
         val condition = parseExpression()
-        program.next("]?{")
+        program.skipAll("]?{")
         val nonZeroCase = parseExpression()
-        program.next("}:{")
+        program.skipAll("}:{")
         val zeroCase = parseExpression()
-        program.next('}')
+        program.skip('}')
         return Expression.If(condition, nonZeroCase, zeroCase)
     }
 
@@ -57,32 +69,32 @@ class Parser(private val program: Program) {
 
     private fun parseFunctionDefinition() {
         val functionName = parseIdentifier()
-        program.next('(')
+        program.skip('(')
         val parameters = generateSequence {
-            if (program.peek() == ')')
+            if (program.trySkip(')'))
                 null
             else parseIdentifier().also {
-                program.nextOrNull { it == ',' } ?: if (program.peek() != ')') throw SyntaxError()
+                if (!program.trySkip(',') && program.peek() != ')') throw SyntaxError()
             }
         }.toList()
         parameterIndices = parameters.mapIndexed { index, name -> name to index }.toMap()
         if (parameterIndices.size < parameters.size)
             throw SyntaxError()
-        program.next(")={")
+        program.skipAll("={")
         if (functions.contains(functionName))
             throw SyntaxError()
         functions[functionName] = FunctionDefinition(parameters.size, parseExpression())
-        program.next('}')
+        program.skip('}')
     }
 
     private fun parseParameterList(): List<Expression> {
-        program.next('(')
+        program.skip('(')
         return generateSequence {
-            if (program.nextOrNull { it == ')' } != null)
+            if (program.trySkip(')'))
                 null
             else
                 parseExpression().also {
-                    program.nextOrNull { it == ',' } ?: if (program.peek() != ')') throw SyntaxError()
+                    if (!program.trySkip(',') && program.peek() != ')') throw SyntaxError()
                 }
         }.toList()
     }
