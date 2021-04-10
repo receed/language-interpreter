@@ -1,7 +1,7 @@
 sealed class Expression {
     abstract val value: Int
 
-    class Number(override val value: Int): Expression()
+    class Number(override val value: Int) : Expression()
 
     class Binary(val left: Expression, val operation: Operation, val right: Expression) : Expression() {
         override val value: Int
@@ -11,6 +11,14 @@ sealed class Expression {
                 } catch (e: ArithmeticException) {
                     throw RuntimeError()
                 }
+            }
+    }
+
+    class If(val condition: Expression, val nonZeroCase: Expression, val zeroCase: Expression) :
+        Expression() {
+        override val value: Int
+            get() {
+                return if (condition.value != 0) nonZeroCase.value else zeroCase.value
             }
     }
 }

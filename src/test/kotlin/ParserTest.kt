@@ -1,4 +1,3 @@
-import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DynamicTest
@@ -34,7 +33,7 @@ internal class ParserTest {
 
     @TestFactory
     fun invalidExpression() =
-        listOf("--1", "1+1", "1<<2", "(1+1)-", "", "((2*3)/3*2))").map {program ->
+        listOf("--1", "1+1", "1<<2", "(1+1)-", "", "((2*3)/3*2))", "-1+1)", "(1+1-").map { program ->
             DynamicTest.dynamicTest("Program \"$program\" contains syntax errors") {
                 assertThrows(SyntaxError::class.java) { Parser(program).expression }
             }
@@ -43,7 +42,21 @@ internal class ParserTest {
     @Test
     fun calculatorExpression() {
         assertEquals(4, Parser("(2+2)").expression.value)
+        assertEquals(-4, Parser("(-2+-2)").expression.value)
         assertEquals(4, Parser("(2+((3*4)/5))").expression.value)
         assertThrows(RuntimeError::class.java) { Parser("((2+8)%(3-3))").expression.value }
+    }
+
+    @Test
+    fun invalidIfExpression() {
+        assertThrows(SyntaxError::class.java) { Parser("[1>1]?{7}").expression }
+        assertThrows(SyntaxError::class.java) { Parser("[1>1]?(7):{1}").expression }
+        assertThrows(SyntaxError::class.java) { Parser("[1>1]??{7}:{1}").expression }
+    }
+
+    @Test
+    fun ifExpression() {
+        assertEquals(5, Parser("([(32>23)]?{7}:{1}+[0]?{2}:{-2})").expression.value)
+        assertEquals(0, Parser("[((10+20)>(20+10))]?{1}:{0}").expression.value)
     }
 }
